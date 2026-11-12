@@ -243,13 +243,17 @@ function initLock() {
   const en = pkEnroll(), usePk = !!en || (remote && remote.type === "passkey");
   $("pkBox").classList.toggle("hidden", !pkSupported());
   $("pkUnlock").classList.toggle("hidden", !en); $("pkNew").classList.toggle("hidden", !!en);
-  $("pinBox").classList.toggle("hidden", usePk && pkSupported());
+  $("pinBox").classList.toggle("hidden", pkSupported());          // kde je passkey, PIN se nenabizi
   const v = pinSrc();
   $("pin2").classList.toggle("hidden", !!v);
   $("lockTitle").textContent = v ? "Odemknout" : "Nastavit PIN";
   $("lockHint").textContent = v ? "" :
     "PIN šifruje data v tomto prohlížeči. Zapomenutý PIN nejde obnovit. Čím delší PIN/heslo, tím lepší ochrana (krátké číselné PINy jdou při úniku zálohy prolomit hrubou silou).";
-  $("pin").focus();
+  if (pkSupported()) {
+    $("lockTitle").textContent = en ? "Odemknout" : "Vytvořit passkey";
+    $("lockHint").textContent = en ? "" :
+      "Passkey vytvoříte jednou na tomto zařízení (Face ID / otisk). Stavy majetku se ukládají jen v tomto telefonu, šifrované passkey.";
+  }
 }
 async function unlock() {
   $("lockErr").textContent = "";
