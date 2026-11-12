@@ -1,0 +1,473 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Majetek</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--fg:#1c1f24;--mut:#6b7380;--acc:#2563eb;--bd:#dde1e7;--err:#c0392b}
+@media (prefers-color-scheme:dark){:root{--bg:#14171c;--card:#1d2127;--fg:#e8eaed;--mut:#9aa3af;--acc:#5b8def;--bd:#323943;--err:#ff7b6b}}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.4 system-ui,sans-serif;background:var(--bg);color:var(--fg)}
+header{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:12px 16px;background:var(--card);border-bottom:1px solid var(--bd);position:sticky;top:0;z-index:5}
+header h1{font-size:18px;margin:0 auto 0 0}
+button,input,textarea{font:inherit;color:inherit}
+button{background:var(--card);border:1px solid var(--bd);border-radius:8px;padding:6px 12px;cursor:pointer}
+button.p{background:var(--acc);border-color:var(--acc);color:#fff}
+button.d{color:var(--err)}
+input,textarea{background:var(--bg);border:1px solid var(--bd);border-radius:8px;padding:7px 10px;width:100%}
+main{max-width:1000px;margin:0 auto;padding:16px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;overflow:hidden;display:flex;flex-direction:column}
+.card .img{height:140px;background:var(--bg);display:flex;align-items:center;justify-content:center;color:var(--mut);font-size:12px}
+.card .img img{width:100%;height:100%;object-fit:cover}
+.card .b{padding:10px;flex:1}
+.card .n{font-weight:600}
+.card .m{color:var(--mut);font-size:13px;white-space:pre-wrap}
+.card .a{display:flex;gap:6px;padding:0 10px 10px}
+.card .a button{flex:1;padding:4px;font-size:13px}
+.box{max-width:340px;margin:12vh auto;background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:20px}
+.box h2{margin-top:0}
+.box input{margin:6px 0}
+.err{color:var(--err);min-height:1.3em;font-size:13px}
+.mut{color:var(--mut);font-size:13px}
+dialog{border:1px solid var(--bd);border-radius:12px;background:var(--card);color:var(--fg);width:min(560px,94vw);padding:16px}
+dialog::backdrop{background:#0008}
+dialog label{display:block;margin:8px 0 2px;font-size:13px;color:var(--mut)}
+dialog textarea{min-height:220px;font-family:monospace;font-size:13px}
+.row{display:flex;gap:8px;margin-top:12px;justify-content:flex-end;flex-wrap:wrap}
+.hidden{display:none!important}
+#search{max-width:260px}
+select{background:var(--card);border:1px solid var(--bd);border-radius:8px;padding:6px;font:inherit;color:inherit}
+.stb{display:flex;gap:4px;padding:0 10px 8px}
+.stb button{flex:1;padding:8px 2px;font-size:12px}
+.stb button.on{color:#fff;font-weight:600}
+.stb button.on.ok{background:#16a34a;border-color:#16a34a}
+.stb button.on.unused{background:#d97706;border-color:#d97706}
+.stb button.on.no{background:#dc2626;border-color:#dc2626}
+.card.st-ok{border:2px solid #16a34a}.card.st-unused{border:2px solid #d97706}.card.st-no{border:2px solid #dc2626;opacity:.75}
+#sum{margin:0 0 12px}
+@media (max-width:600px){.grid{grid-template-columns:1fr 1fr;gap:8px}.card .img{height:110px}main{padding:10px}#search{max-width:none;flex:1 1 100%}.stb{flex-direction:column}}
+</style>
+</head>
+<body>
+
+<div id="lock" class="box">
+  <h2 id="lockTitle">Odemknout</h2>
+  <p class="mut" id="lockHint"></p>
+  <div id="pkBox" class="hidden">
+    <button class="p" id="pkUnlock" style="width:100%">Odemknout passkey</button>
+    <button class="p" id="pkNew" style="width:100%">Vytvořit passkey</button>
+  </div>
+  <div id="pinBox">
+    <input id="pin" type="password" inputmode="text" autocomplete="off" placeholder="PIN / heslo">
+    <input id="pin2" type="password" autocomplete="off" placeholder="PIN znovu" class="hidden">
+    <button class="p" id="lockBtn" style="width:100%">Pokračovat</button>
+  </div>
+  <div class="err" id="lockErr"></div>
+</div>
+
+<div id="app" class="hidden">
+  <header>
+    <h1>Majetek <span class="mut" id="count"></span></h1>
+    <input id="search" placeholder="Hledat…">
+    <select id="stFilter"><option value="">Všechny</option><option value="none">Neověřeno</option><option value="ok">Existuje</option><option value="unused">Nepoužívá se</option><option value="no">Neexistuje</option></select>
+    <button class="p" id="addBtn">+ Přidat</button>
+    <button id="pdfBtn">Import seznamu</button>
+    <button id="photosBtn">Načíst fotky</button>
+    <button id="csvBtn">Export výsledků (CSV)</button>
+    <button id="expBtn">Export (šifrovaný)</button>
+    <button id="impBtn">Import zálohy</button>
+    <button id="lockNow">Zamknout</button>
+    <button class="d" id="wipeBtn">Smazat vše</button>
+  </header>
+  <main><p class="mut" id="sum"></p><div class="grid" id="list"></div><p class="mut" id="empty"></p></main>
+</div>
+
+<input type="file" id="backupFile" accept=".json,application/json" class="hidden">
+
+<dialog id="editDlg">
+  <h3 id="editTitle">Položka</h3>
+  <label>Název</label><input id="eName">
+  <label>Poznámka (cena, sériové číslo, umístění…)</label><textarea id="eNote" style="min-height:80px;font-family:inherit"></textarea>
+  <label>Vyhledávací dotaz pro fotku (výchozí = název)</label><input id="eQuery">
+  <label>URL fotky</label><input id="eImg" placeholder="https://…">
+  <div class="row">
+    <button id="eFind">Najít fotku</button>
+    <button id="eNext">Další fotka</button>
+    <span style="flex:1"></span>
+    <button id="eCancel">Zrušit</button>
+    <button class="p" id="eSave">Uložit</button>
+  </div>
+  <div class="mut" id="eInfo"></div>
+</dialog>
+
+<dialog id="impDlg">
+  <h3>Import seznamu</h3>
+  <p class="mut">Jeden řádek = jedna položka. Text za <code>;</code> nebo tabulátorem se uloží jako poznámka. Upravte, co je potřeba, a potvrďte.</p>
+  <textarea id="impText" placeholder="Vložte seznam majetku (jeden řádek = jedna položka)…"></textarea>
+  <div class="row">
+    <span style="flex:1"></span>
+    <button id="impCancel">Zrušit</button>
+    <button class="p" id="impOk">Přidat položky</button>
+  </div>
+</dialog>
+
+<dialog id="enDlg">
+  <h3>Passkey vytvořen</h3>
+  <p class="mut">Tento text (enrollment) je veřejný a bezpečný – obsahuje jen veřejný klíč a zabalený soukromý klíč, který bez vašeho passkey nejde otevřít. Pošlete ho vývojáři, ať pro něj zašifruje data.</p>
+  <textarea id="enText" readonly style="min-height:160px;font-family:monospace;font-size:12px"></textarea>
+  <div class="row"><button id="enCopy">Zkopírovat</button><button id="enSave">Stáhnout enrollment.json</button><button class="p" id="enClose">Zavřít</button></div>
+</dialog>
+
+<script>
+"use strict";
+const LS_KEY = "majetek.vault.v1";
+const ITER = 1000000;   // iteraci PBKDF2 pro nove trezory; stary trezor nese vlastni hodnotu "iter"
+const $ = id => document.getElementById(id);
+const enc = new TextEncoder(), dec = new TextDecoder();
+const b64 = buf => btoa(String.fromCharCode(...new Uint8Array(buf)));
+const unb64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+
+let key = null, salt = null, items = [], curIter = ITER, remote = null, pk = null, enrollRemote = null;   // remote = data.enc.json z GitHub Pages
+
+async function deriveKey(pin, salt, iter = ITER) {
+  curIter = iter;
+  const base = await crypto.subtle.importKey("raw", enc.encode(pin), "PBKDF2", false, ["deriveKey"]);
+  return crypto.subtle.deriveKey({name:"PBKDF2", salt, iterations:iter, hash:"SHA-256"}, base,
+    {name:"AES-GCM", length:256}, false, ["encrypt","decrypt"]);
+}
+async function encryptItems() {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ct = await crypto.subtle.encrypt({name:"AES-GCM", iv}, key, enc.encode(JSON.stringify(items)));
+  return {v:1, iter:curIter, salt:b64(salt), iv:b64(iv), ct:b64(ct)};
+}
+async function decryptVault(v, k) {
+  const pt = await crypto.subtle.decrypt({name:"AES-GCM", iv:unb64(v.iv)}, k, unb64(v.ct));
+  return JSON.parse(dec.decode(pt));
+}
+let localMode = false;   // true = bezi pres lokalni server: bez PINu, data v data.json
+async function save() {
+  if (localMode) { await fetch("/api/data", {method:"PUT", body: JSON.stringify(items)}); return; }
+  if (pk) { localStorage.setItem(PK_WORK, JSON.stringify({base:pk.base, d:await aesEnc(await hkdfKey(pk.prf, "work"), enc.encode(JSON.stringify({items})))})); return; }
+  localStorage.setItem(LS_KEY, JSON.stringify(await encryptItems()));
+}
+
+// ---------- passkey (WebAuthn PRF) ----------
+const PK_KEY = "majetek.passkey.v1", PK_WORK = "majetek.work.v1";
+const pkSupported = () => !!(window.PublicKeyCredential && navigator.credentials);
+const rnd = n => crypto.getRandomValues(new Uint8Array(n));
+const lsGet = k => { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } };
+async function hkdfKey(secret, info) {
+  const base = await crypto.subtle.importKey("raw", secret, "HKDF", false, ["deriveKey"]);
+  return crypto.subtle.deriveKey({name:"HKDF", hash:"SHA-256", salt:new Uint8Array(), info:enc.encode(info)}, base,
+    {name:"AES-GCM", length:256}, false, ["encrypt","decrypt"]);
+}
+async function aesEnc(k, bytes) { const iv = rnd(12); return {iv:b64(iv), ct:b64(await crypto.subtle.encrypt({name:"AES-GCM", iv}, k, bytes))}; }
+async function aesDec(k, o) { return new Uint8Array(await crypto.subtle.decrypt({name:"AES-GCM", iv:unb64(o.iv)}, k, unb64(o.ct))); }
+async function pkPrf(en) {                       // 32 bajtu tajemstvi z passkey (vyzaduje gesto uzivatele)
+  const a = await navigator.credentials.get({publicKey:{challenge:rnd(32), userVerification:"required",
+    allowCredentials:[{type:"public-key", id:unb64(en.credId)}], extensions:{prf:{eval:{first:unb64(en.salt)}}}}});
+  const r = a.getClientExtensionResults().prf?.results?.first;
+  if (!r) throw new Error("Tento passkey/prohlížeč nepodporuje PRF (zkuste iPhone s iOS 18+ a Safari).");
+  return new Uint8Array(r);
+}
+async function pkWrapNew(prf, salt, credId) {    // vygeneruje ECDH par, soukromy klic zabali klicem z PRF
+  const kp = await crypto.subtle.generateKey({name:"ECDH", namedCurve:"P-256"}, true, ["deriveBits"]);
+  return {credId, salt:b64(salt), pub:await crypto.subtle.exportKey("jwk", kp.publicKey),
+    wrapped:await aesEnc(await hkdfKey(prf, "wrap"), new Uint8Array(await crypto.subtle.exportKey("pkcs8", kp.privateKey)))};
+}
+async function pkCreate() {
+  const salt = rnd(32);
+  const cred = await navigator.credentials.create({publicKey:{rp:{name:"Majetek"},
+    user:{id:rnd(16), name:"majetek", displayName:"Majetek"}, challenge:rnd(32),
+    pubKeyCredParams:[{type:"public-key", alg:-7}, {type:"public-key", alg:-257}],
+    authenticatorSelection:{residentKey:"required", userVerification:"required"}, extensions:{prf:{}}}});
+  const credId = b64(cred.rawId);
+  const prf = await pkPrf({credId, salt:b64(salt)});   // druhe gesto: ziskani PRF
+  return {en: await pkWrapNew(prf, salt, credId), prf};
+}
+async function pkDecryptData(rem, en, prf) {      // rem = {epk, iv, ct}
+  const priv = await crypto.subtle.importKey("pkcs8", await aesDec(await hkdfKey(prf, "wrap"), en.wrapped),
+    {name:"ECDH", namedCurve:"P-256"}, false, ["deriveBits"]);
+  const epk = await crypto.subtle.importKey("jwk", rem.epk, {name:"ECDH", namedCurve:"P-256"}, false, []);
+  const bits = new Uint8Array(await crypto.subtle.deriveBits({name:"ECDH", public:epk}, priv, 256));
+  return JSON.parse(dec.decode(await aesDec(await hkdfKey(bits, "majetek-data-v2"), rem)));
+}
+const pkEnroll = () => lsGet(PK_KEY) || enrollRemote;
+const pinSrc = () => vault() || (remote && remote.type === "passkey" ? null : remote);
+function enterApp() {
+  $("lock").classList.add("hidden"); $("app").classList.remove("hidden"); render();
+}
+async function unlockPasskey() {
+  $("lockErr").textContent = "";
+  try {
+    const en = pkEnroll(); if (!en) { $("lockErr").textContent = "Passkey ještě není vytvořený."; return; }
+    const prf = await pkPrf(en);
+    const w = lsGet(PK_WORK);
+    const local = w ? JSON.parse(dec.decode(await aesDec(await hkdfKey(prf, "work"), w.d))) : null;
+    let its = local ? local.items : [], base = w ? w.base : "";
+    if (remote && remote.type === "passkey" && remote.ver !== base) {      // nova verze dat z Pages: slouci se stavy
+      const r = await pkDecryptData(remote, en, prf), m = new Map(its.map(i => [i.id, i]));
+      const ids = new Set(r.map(i => i.id));
+      its = [...r.map(i => ({...i, st: (m.get(i.id) || {}).st ?? i.st})), ...its.filter(i => !ids.has(i.id))];
+      base = remote.ver;
+    }
+    pk = {en, prf, base}; items = its; await save();
+    for (const id of ["expBtn","impBtn"]) $(id).classList.add("hidden");
+    enterApp();
+  } catch (e) { $("lockErr").textContent = "Passkey selhal: " + (e.message || e); }
+}
+async function createPasskey() {
+  $("lockErr").textContent = "";
+  try {
+    const {en, prf} = await pkCreate();
+    localStorage.setItem(PK_KEY, JSON.stringify(en));
+    pk = {en, prf, base:""}; items = []; await save();
+    for (const id of ["expBtn","impBtn"]) $(id).classList.add("hidden");
+    enterApp(); $("enText").value = JSON.stringify(en); $("enDlg").showModal();
+  } catch (e) { $("lockErr").textContent = "Vytvoření passkey selhalo: " + (e.message || e); }
+}
+$("pkUnlock").onclick = unlockPasskey;
+$("pkNew").onclick = createPasskey;
+$("enClose").onclick = () => $("enDlg").close();
+$("enCopy").onclick = async () => { try { await navigator.clipboard.writeText($("enText").value); } catch { $("enText").select(); document.execCommand("copy"); } };
+$("enSave").onclick = () => {
+  const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([$("enText").value], {type:"application/json"}));
+  a.download = "enrollment.json"; a.click(); URL.revokeObjectURL(a.href);
+};
+
+// ---------- zamek ----------
+function vault() { try { return JSON.parse(localStorage.getItem(LS_KEY)); } catch { return null; } }
+function initLock() {
+  const en = pkEnroll(), usePk = !!en || (remote && remote.type === "passkey");
+  $("pkBox").classList.toggle("hidden", !pkSupported());
+  $("pkUnlock").classList.toggle("hidden", !en); $("pkNew").classList.toggle("hidden", !!en);
+  $("pinBox").classList.toggle("hidden", usePk && pkSupported());
+  const v = pinSrc();
+  $("pin2").classList.toggle("hidden", !!v);
+  $("lockTitle").textContent = v ? "Odemknout" : "Nastavit PIN";
+  $("lockHint").textContent = v ? "" :
+    "PIN šifruje data v tomto prohlížeči. Zapomenutý PIN nejde obnovit. Čím delší PIN/heslo, tím lepší ochrana (krátké číselné PINy jdou při úniku zálohy prolomit hrubou silou).";
+  $("pin").focus();
+}
+async function unlock() {
+  $("lockErr").textContent = "";
+  const pin = $("pin").value;
+  if (!pin) return;
+  $("lockBtn").disabled = true;
+  try {
+    const v = pinSrc();
+    if (v) {
+      salt = unb64(v.salt);
+      const k = await deriveKey(pin, salt, v.iter || 600000);
+      try { items = await decryptVault(v, k); } catch { $("lockErr").textContent = "Špatný PIN."; return; }
+      key = k;
+      if (!vault()) await save();          // prvni odemceni dat z Pages: uloz pracovni kopii do prohlizece
+    } else {
+      if (pin.length < 4) { $("lockErr").textContent = "Minimálně 4 znaky."; return; }
+      if (pin !== $("pin2").value) { $("lockErr").textContent = "PINy se neshodují."; return; }
+      salt = crypto.getRandomValues(new Uint8Array(16));
+      key = await deriveKey(pin, salt); items = [];
+      await save();
+    }
+    $("pin").value = $("pin2").value = "";
+    $("lock").classList.add("hidden"); $("app").classList.remove("hidden");
+    render();
+  } finally { $("lockBtn").disabled = false; }
+}
+function lockNow() {
+  key = null; items = []; salt = null; pk = null;
+  $("app").classList.add("hidden"); $("lock").classList.remove("hidden");
+  $("list").innerHTML = ""; initLock();
+}
+$("lockBtn").onclick = unlock;
+$("pin").onkeydown = $("pin2").onkeydown = e => { if (e.key === "Enter") unlock(); };
+$("lockNow").onclick = lockNow;
+
+// ---------- seznam ----------
+function esc(s) { return String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+function render() {
+  const q = $("search").value.trim().toLowerCase();
+  const sf = $("stFilter").value;
+  const shown = items.filter(i => (!q || (i.name + " " + (i.note||"")).toLowerCase().includes(q)) &&
+    (sf === "" || (sf === "none" ? !i.st : i.st === sf)));
+  $("count").textContent = `(${items.length})`;
+  const c = s => items.filter(i => (i.st||"") === s).length;
+  $("sum").textContent = `Existuje: ${c("ok")} · Existuje, nepoužívá se: ${c("unused")} · Neexistuje: ${c("no")} · Neověřeno: ${c("")}`;
+  $("empty").textContent = items.length ? "" : "Zatím nic. Přidejte položku nebo importujte PDF.";
+  $("list").innerHTML = shown.map(i => `
+    <div class="card st-${i.st||""}" data-id="${i.id}">
+      <div class="img">${i.img ? `<img loading="lazy" referrerpolicy="no-referrer" src="${esc(i.img)}" alt="" onerror="this.replaceWith('bez fotky')">` : "bez fotky"}</div>
+      <div class="b"><div class="n">${esc(i.name)}</div><div class="m">${esc(i.note)}</div></div>
+      <div class="stb">
+        <button data-a="st:ok" class="${i.st==="ok"?"on ok":""}">Existuje</button>
+        <button data-a="st:unused" class="${i.st==="unused"?"on unused":""}">Nepoužívá se</button>
+        <button data-a="st:no" class="${i.st==="no"?"on no":""}">Neexistuje</button>
+      </div>
+      <div class="a"><button data-a="edit">Upravit</button><button class="d" data-a="del">Smazat</button></div>
+    </div>`).join("");
+}
+$("search").oninput = render;
+$("stFilter").onchange = render;
+$("csvBtn").onclick = () => {                      // vysledky inventury do Excelu
+  const lab = {ok:"Existuje", unused:"Existuje, nepouziva se", no:"Neexistuje", "":"Neovereno"};
+  const q = s => '"' + String(s ?? "").replace(/"/g, '""') + '"';
+  const rows = [["Nazev","Poznamka","Stav"], ...items.map(i => [i.name, i.note, lab[i.st||""]])];
+  const blob = new Blob(["﻿" + rows.map(r => r.map(q).join(";")).join("\r\n")], {type:"text/csv;charset=utf-8"});
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "majetek-inventura.csv"; a.click();
+  URL.revokeObjectURL(a.href);
+};
+$("list").onclick = async e => {
+  const a = e.target.dataset.a; if (!a) return;
+  const id = e.target.closest(".card").dataset.id;
+  if (a.startsWith("st:")) {
+    const it = items.find(i => i.id === id), v = a.slice(3);
+    it.st = it.st === v ? "" : v;                 // druhy klik stav zrusi
+    await save(); render(); return;
+  }
+  if (a === "edit") openEdit(items.find(i => i.id === id));
+  if (a === "del" && confirm("Smazat položku?")) { items = items.filter(i => i.id !== id); await save(); render(); }
+};
+const uid = () => crypto.randomUUID();
+
+// ---------- editace + fotky ----------
+let editing = null, results = [], resIdx = 0;
+function openEdit(it) {
+  editing = it || {id: uid(), name:"", note:"", query:"", img:""};
+  $("editTitle").textContent = it ? "Upravit položku" : "Nová položka";
+  $("eName").value = editing.name; $("eNote").value = editing.note || "";
+  $("eQuery").value = editing.query || ""; $("eImg").value = editing.img || "";
+  $("eInfo").textContent = ""; results = []; resIdx = 0;
+  $("editDlg").showModal();
+}
+$("addBtn").onclick = () => openEdit(null);
+$("eCancel").onclick = () => $("editDlg").close();
+$("eSave").onclick = async () => {
+  const name = $("eName").value.trim(); if (!name) return;
+  $("eSave").disabled = true;
+  const img = await localize(editing.id, $("eImg").value.trim());
+  $("eSave").disabled = false;
+  Object.assign(editing, {name, note:$("eNote").value, query:$("eQuery").value.trim(), img});
+  if (!items.includes(editing)) items.push(editing);
+  await save(); $("editDlg").close(); render();
+};
+// Cisti nazev pro vyhledavani: bez jmen osob v zavorkach, SPZ a poctu kusu; rozepise zkratky
+function cleanQuery(n) {
+  return String(n).replace(/\([^)]*\)?/g, " ").replace(/\bSPZ:?\s*\S+/gi, " ").replace(/^TU:\s*/i, "")
+    .replace(/^NB\b/i, "notebook").replace(/^MT\b/i, "mobilní telefon").replace(/^SW\b/i, "software")
+    .replace(/^PC\b/i, "počítač PC").replace(/\b\d+\s*ks\b/gi, " ").replace(/\s+/g, " ").trim();
+}
+async function searchPhotos(q) {
+  try {                                   // lokalni server (Bing) – nejlepsi vysledky
+    const r = await fetch("/api/images?q=" + encodeURIComponent(q));
+    if (r.ok) return (await r.json()).results.map(x => x.thumb);
+  } catch {}
+  return searchCommons(q);
+}
+// Ulozi vzdaleny obrazek na disk pres lokalni server; bez serveru vrati puvodni URL
+async function localize(id, url) {
+  if (!url || !/^https?:/i.test(url)) return url;
+  try {
+    const r = await fetch("/api/save?id=" + encodeURIComponent(id) + "&url=" + encodeURIComponent(url));
+    if (r.ok) { const j = await r.json(); if (j.url) return j.url; }
+  } catch {}
+  return url;
+}
+async function searchCommons(q) {
+  const u = "https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrnamespace=6&gsrlimit=8" +
+    "&gsrsearch=" + encodeURIComponent("filetype:bitmap " + q) +
+    "&prop=imageinfo&iiprop=url|mime&iiurlwidth=400&format=json&origin=*";
+  const r = await fetch(u); if (!r.ok) throw new Error(r.status);
+  const j = await r.json();
+  return Object.values(j.query?.pages || {})
+    .sort((a,b) => a.index - b.index)
+    .map(p => p.imageinfo?.[0]).filter(x => x && /^image\/(jpeg|png|webp)/.test(x.mime))
+    .map(x => x.thumburl || x.url);
+}
+async function findPhoto(next) {
+  const q = $("eQuery").value.trim() || cleanQuery($("eName").value); if (!q) return;
+  $("eInfo").textContent = "Hledám…";
+  try {
+    if (!next || !results.length) { results = await searchPhotos(q); resIdx = 0; }
+    else resIdx = (resIdx + 1) % results.length;
+    if (!results.length) { $("eInfo").textContent = "Nic nenalezeno – zkuste upravit dotaz."; return; }
+    $("eImg").value = results[resIdx];
+    $("eInfo").textContent = `Fotka ${resIdx+1}/${results.length}. Uložením se stáhne na disk.`;
+  } catch (e) { $("eInfo").textContent = "Vyhledávání selhalo: " + e.message; }
+}
+$("eFind").onclick = () => findPhoto(false);
+$("eNext").onclick = () => findPhoto(true);
+
+$("photosBtn").onclick = async () => {
+  const todo = items.filter(i => !i.img);
+  if (!todo.length) return alert("Všechny položky už fotku mají.");
+  if (!confirm(`Hledat fotky pro ${todo.length} položek? Vyčištěné názvy (bez jmen osob a SPZ) se odešlou do vyhledávače obrázků.`)) return;
+  const btn = $("photosBtn"); btn.disabled = true;
+  let n = 0;
+  for (const it of todo) {
+    btn.textContent = `Fotky ${++n}/${todo.length}…`;
+    try {
+      const r = await searchPhotos(it.query || cleanQuery(it.name));
+      if (r[0]) { it.img = await localize(it.id, r[0]); await save(); render(); }
+    } catch {}
+    await new Promise(r => setTimeout(r, 250));
+  }
+  btn.textContent = "Načíst fotky"; btn.disabled = false;
+};
+
+// ---------- import seznamu ----------
+$("pdfBtn").onclick = () => $("impDlg").showModal();
+$("impCancel").onclick = () => $("impDlg").close();
+$("impOk").onclick = async () => {
+  const lines = $("impText").value.split("\n").map(l => l.trim()).filter(Boolean);
+  for (const l of lines) {
+    const [name, ...rest] = l.split(/\s*[;\t]\s*/);
+    items.push({id: uid(), name: name.trim(), note: rest.join(" · "), query: "", img: ""});
+  }
+  await save(); $("impDlg").close(); $("impText").value = ""; render();
+};
+
+// ---------- export / import zalohy (vzdy sifrovane) ----------
+$("expBtn").onclick = async () => {
+  const blob = new Blob([JSON.stringify(await encryptItems())], {type:"application/json"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download = "majetek-sifrovano.json"; a.click();
+  URL.revokeObjectURL(a.href);
+};
+$("impBtn").onclick = () => $("backupFile").click();
+$("backupFile").onchange = async e => {
+  const f = e.target.files[0]; e.target.value = ""; if (!f) return;
+  try {
+    const v = JSON.parse(await f.text());
+    const pin = prompt("PIN, kterým byla záloha zašifrována:"); if (!pin) return;
+    const k = await deriveKey(pin, unb64(v.salt), v.iter || 600000);
+    const data = await decryptVault(v, k);
+    if (!confirm(`Záloha obsahuje ${data.length} položek. OK = nahradit aktuální data, Zrušit = nic.`)) return;
+    salt = unb64(v.salt); key = k; items = data; await save(); render();
+    alert("Hotovo. Od teď platí PIN ze zálohy.");
+  } catch { alert("Zálohu se nepodařilo dešifrovat (špatný PIN nebo poškozený soubor)."); }
+};
+$("wipeBtn").onclick = () => {
+  if (confirm("Opravdu smazat všechna data i PIN z tohoto prohlížeče?")) { localStorage.removeItem(LS_KEY); localStorage.removeItem(PK_WORK); lockNow(); }
+};
+
+(async function boot() {
+  try {                                   // lokalni server? -> nesifrovany rezim
+    const r = await fetch("/api/data", {cache:"no-store"});
+    if (r.ok && (r.headers.get("content-type")||"").includes("json")) {
+      items = await r.json(); localMode = true;
+      $("lock").classList.add("hidden"); $("app").classList.remove("hidden");
+      for (const id of ["lockNow","wipeBtn","expBtn","impBtn"]) $(id).classList.add("hidden");
+      document.querySelector("header h1").insertAdjacentHTML("beforeend", ' <span class="mut">· lokální režim, bez šifrování</span>');
+      render(); return;
+    }
+  } catch {}
+  try { const r = await fetch("data.enc.json", {cache:"no-store"}); if (r.ok) remote = await r.json(); } catch {}
+  try { const r = await fetch("enrollment.json", {cache:"no-store"}); if (r.ok) enrollRemote = await r.json(); } catch {}
+  if (!window.crypto?.subtle) document.body.innerHTML = "<p style='padding:20px'>Web Crypto vyžaduje HTTPS (GitHub Pages ho má).</p>";
+  else initLock();
+})();
+</script>
+</body>
+</html>
